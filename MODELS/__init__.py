@@ -1,5 +1,5 @@
 # MODELS/__init__.py
-REASONING_MODEL = "gemini-2.5-pro-experimental-03-25"
+REASONING_MODEL = "gemini-1.5-flash-8b-001"
 FLASH_MODEL = "gemini-2.5-flash-preview-05-20"
 TEXT_TO_SPEECH_MODEL = "gemini-1.5-flash-preview-tts"
 AUDIO_DIALOG_MODEL = "gemini-1.5-flash-preview-native-audio-dialog"

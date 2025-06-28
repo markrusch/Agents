@@ -23,26 +23,11 @@ PYTHONIC_NAME_MAP = {
 def generate_pythonic_name(api_model_id):
     """
     Generates a pythonic name for a given API model ID.
-    Uses PYTHONIC_NAME_MAP first, then generates a name if not found.
+    Removes the leading 'models/' if present, and returns the rest as the pythonic name.
     """
-    # 1. Check the explicit map first
-    if api_model_id in PYTHONIC_NAME_MAP:
-        return PYTHONIC_NAME_MAP[api_model_id]
-    
-    # 2. If not in map, generate it
-    name_part = api_model_id
     if api_model_id.startswith("models/"):
-        name_part = api_model_id[len("models/"):]
-    
-    # Replace hyphens with underscores, convert to lowercase
-    pythonic_name = name_part.lower()
-    
-    # Ensure it's a valid Python identifier (though for constants, this is usually fine)
-    # and doesn't start with a digit (prepend MODEL_ if so, though unlikely for gemini models)
-    if pythonic_name and pythonic_name[0].isdigit():
-        pythonic_name = "MODEL_" + pythonic_name
-        
-    return pythonic_name
+        return api_model_id[len("models/"):]
+    return api_model_id
 
 def parse_limit_value(text, limit_type_expected):
     """
@@ -234,8 +219,8 @@ def scrape_free_tier_rates():
 
 # --- Main execution block ---
 if __name__ == "__main__":
-    OUTPUT_DIR = pathlib.Path("models_overview")
-    OUTPUT_FILE = OUTPUT_DIR / "combined_model_info.csv"
+    OUTPUT_DIR = pathlib.Path(__file__).parent
+    OUTPUT_FILE = OUTPUT_DIR / "model_info.csv"
 
     try:
         df_api_models = fetch_models_from_api()

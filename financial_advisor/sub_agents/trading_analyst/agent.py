@@ -19,7 +19,7 @@ import MODELS
 
 from . import prompt
 
-MODEL= MODELS.REASONING_MODEL_MODEL
+MODEL= MODELS.REASONING_MODEL
 
 trading_analyst_agent = Agent(
     model=MODEL,
