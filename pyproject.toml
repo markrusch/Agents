@@ -20,6 +20,11 @@ pandas = "^2.2.3"
 bs4 = "^0.0.2"
 requests = "^2.32.3"
 google-generativeai = "^0.8.5"
+lxml = "^6.0.0"
+yfinance = "^0.2.64"
+textblob = "^0.19.0"
+langchain = "^0.3.26"
+langchain-community = "^0.3.26"
 [tool.poetry.group.dev]
 optional = true
 

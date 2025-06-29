@@ -115,107 +115,42 @@ def scrape_free_tier_rates():
         print(f"Failed to retrieve {rate_limits_url}: {e}")
         return pd.DataFrame()
 
-    print("\nLooking for the 'Free tier' section and its rate limits table...")
-    free_tier_anchor = soup.find(id="free-tier")
-    
-    if not free_tier_anchor:
-        print("Could not find the 'Free tier' anchor (id='free-tier').")
-        return pd.DataFrame()
-
-    print(f"Found anchor element for 'Free tier': <{free_tier_anchor.name}> {free_tier_anchor.text[:50]}...")
-    
-    free_tier_table = None
-    current_element = free_tier_anchor.find_next_sibling() # Start searching *after* the anchor
-    while current_element:
-        if current_element.name == 'table':
-            # Check if this table looks like a rate limits table (e.g. by checking headers)
-            # This is to avoid picking up unrelated tables if the structure is complex.
-            temp_headers = [th.text.strip().lower() for th in current_element.find_all('th', recursive=False)] # Only direct children th
-            if not temp_headers and current_element.find('thead'): # check thead if no direct th
-                temp_headers = [th.text.strip().lower() for th in current_element.find('thead').find_all('th')]
-
-            if any(kw in hdr for hdr in temp_headers for kw in ["rpm", "requests per minute", "model"]):
-                free_tier_table = current_element
-                print("Found a rate limits table associated with the 'Free tier' section.")
-                break
-        current_element = current_element.find_next_sibling()
-    
-    if not free_tier_table: # Fallback if the direct sibling search didn't work as expected
-        free_tier_table = free_tier_anchor.find_next('table')
-        if free_tier_table:
-            print("Found rate limits table (using general find_next) for 'Free tier'.")
-        else:
-            print("Could not find the table for 'Free tier' rate limits.")
-            return pd.DataFrame()
-
-    headers = [th.text.strip().lower().replace('\n', ' ').strip() for th in free_tier_table.find_all('th')]
-    if not headers and free_tier_table.find('thead'): # Check thead again
-         headers = [th.text.strip().lower().replace('\n', ' ').strip() for th in free_tier_table.find('thead').find_all('th')]
-
-    if not headers: # Try inferring from first data row if no <th> or <thead>
-        first_data_row = free_tier_table.find('tbody').find('tr') if free_tier_table.find('tbody') else free_tier_table.find('tr')
-        if first_data_row:
-            headers = [td.text.strip().lower().replace('\n', ' ').strip() for td in first_data_row.find_all('td')]
-            # If we infer headers from <td>, we assume this row IS NOT data for the loop later.
-    print(f"Table Headers: {headers}")
-
-    if not headers or "model" not in headers : # Need 'model' header to identify model names
-        print("Could not determine valid table headers (missing 'model' or all headers).")
-        return pd.DataFrame()
-
-    data_rows_source = free_tier_table.find('tbody') if free_tier_table.find('tbody') else free_tier_table
-    data_rows = data_rows_source.find_all('tr')
-    
-    # If headers were properly found via <th> or <thead>, skip the header row from data_rows
-    start_row_index = 0
-    if free_tier_table.find('thead') or (free_tier_table.find_all('th') and data_rows and data_rows[0].find('th')):
-        start_row_index = 1 
-
-    for row in data_rows[start_row_index:]:
-        cols = row.find_all('td') # Free tier table typically uses <td> for data cells
-        if not cols or len(cols) < 1: continue # Need at least one column for model name
-
-        row_data = {}
-        model_name_scraped = "N/A"
-        
-        # Determine model name column index from headers
-        try:
-            model_col_idx = headers.index("model")
-            if model_col_idx < len(cols):
-                model_name_scraped = cols[model_col_idx].text.strip()
-        except ValueError: # 'model' header not found or issue with indexing
-            print("Warning: 'model' header not found, attempting first column for model name.")
-            if len(cols) > 0:
-                model_name_scraped = cols[0].text.strip()
-        
-        if model_name_scraped.lower() == "model" or not model_name_scraped or model_name_scraped == "N/A":
-            continue # Skip header-like rows or empty model names
-
-        row_data['model_name_scraped'] = model_name_scraped
-        rpm_val, tpm_val, rpd_val = "N/A", "N/A", "N/A"
-
-        for i, header_text in enumerate(headers):
-            if i < len(cols):
-                cell_text = cols[i].text.strip()
-                if "requests per minute" in header_text or header_text == "rpm":
-                    rpm_val = parse_limit_value(cell_text, "RPM")
-                elif "tokens per minute" in header_text or header_text == "tpm":
-                    tpm_val = parse_limit_value(cell_text, "TPM")
-                elif "requests per day" in header_text or header_text == "rpd":
-                    rpd_val = parse_limit_value(cell_text, "RPD")
-        
-        row_data['rpm_free_tier'] = rpm_val
-        row_data['tpm_free_tier'] = tpm_val
-        row_data['rpd_free_tier'] = rpd_val
-        
-        scraped_limits_data.append(row_data)
-            
-    if scraped_limits_data:
-        print(f"\nSuccessfully extracted {len(scraped_limits_data)} entries from the Free tier table.")
-    else:
-        print("\nNo data extracted from the Free tier table. Check headers or table structure.")
-    
-    return pd.DataFrame(scraped_limits_data)
+    # Instead of scraping, use the provided HTML table for Free Tier
+    from io import StringIO
+    import pandas as pd
+    free_tier_html = '''
+<table>
+  <thead>
+    <tr>
+      <th>Model</th>
+      <th>RPM</th>
+      <th>TPM</th>
+      <th>RPD</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>Gemini 2.5 Pro</td><td>5</td><td>250,0000</td><td>100</td></tr>
+    <tr><td>Gemini 2.5 Flash</td><td>10</td><td>250,000</td><td>250</td></tr>
+    <tr><td>Gemini 2.5 Flash-Lite Preview 06-17</td><td>15</td><td>250,000</td><td>1,000</td></tr>
+    <tr><td>Gemini 2.5 Flash Preview TTS</td><td>3</td><td>10,000</td><td>15</td></tr>
+    <tr><td>Gemini 2.5 Pro Preview TTS</td><td>--</td><td>--</td><td>--</td></tr>
+    <tr><td>Gemini 2.0 Flash</td><td>15</td><td>1,000,000</td><td>200</td></tr>
+    <tr><td>Gemini 2.0 Flash Preview Image Generation</td><td>10</td><td>200,000</td><td>100</td></tr>
+    <tr><td>Gemini 2.0 Flash-Lite</td><td>30</td><td>1,000,000</td><td>200</td></tr>
+    <tr><td>Imagen 3</td><td>--</td><td>--</td><td>--</td></tr>
+    <tr><td>Veo 2</td><td>--</td><td>--</td><td>--</td></tr>
+    <tr><td>Gemini 1.5 Flash (Deprecated)</td><td>15</td><td>250,000</td><td>50</td></tr>
+    <tr><td>Gemini 1.5 Flash-8B (Deprecated)</td><td>15</td><td>250,000</td><td>50</td></tr>
+    <tr><td>Gemini 1.5 Pro (Deprecated)</td><td>--</td><td>--</td><td>--</td></tr>
+    <tr><td>Gemma 3 & 3n</td><td>30</td><td>15,000</td><td>14,400</td></tr>
+    <tr><td>Gemini Embedding Experimental 03-07</td><td>5</td><td>--</td><td>100</td></tr>
+  </tbody>
+</table>
+'''
+    free_tier_df = pd.read_html(StringIO(free_tier_html))[0]
+    # Rename columns to match expected output
+    free_tier_df.columns = ['model_name_scraped', 'rpm_free_tier', 'tpm_free_tier', 'rpd_free_tier']
+    return free_tier_df
 
 # --- Main execution block ---
 if __name__ == "__main__":
@@ -263,6 +198,7 @@ if __name__ == "__main__":
         else:
             print("No data could be fetched from API or scraper.")
 
+
         if not df_final_display.empty:
             final_columns = [
                 'model_name', 'pythonic_name', 'model_id', 'version', 'description', 
@@ -272,15 +208,68 @@ if __name__ == "__main__":
             for col in final_columns: 
                 if col not in df_final_display.columns:
                     df_final_display[col] = "N/A" # Ensure column exists
-            
+
             df_to_save = df_final_display[final_columns].copy()
-            
-            print("\n--- Combined Model Information (API & Scraped Free Tier Rates) ---")
+
+            # Filter out rows where any of the free tier columns are NA
+            mask = (
+                (df_to_save['rpm_free_tier'].str.upper() != 'N/A') &
+                (df_to_save['tpm_free_tier'].str.upper() != 'N/A') &
+                (df_to_save['rpd_free_tier'].str.upper() != 'N/A')
+            )
+            df_to_save = df_to_save[mask]
+
+            print("\n--- Combined Model Information (API & Scraped Free Tier Rates, Filtered) ---")
             print(df_to_save.to_string())
 
             OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
             df_to_save.to_csv(OUTPUT_FILE, index=False)
             print(f"\nData successfully saved to: {OUTPUT_FILE.resolve()}")
+
+            # --- Auto-update __init__.py with best-fit models ---
+            init_path = OUTPUT_DIR / "__init__.py"
+            def safe_int(val):
+                try:
+                    return int(str(val).replace(",", "").replace("-", "0"))
+                except Exception:
+                    return 0
+
+            # Reasoning: pro model with most rpm (pythonic name)
+            pro_mask = df_to_save['model_name'].str.lower().str.contains('pro')
+            pro_models = df_to_save[pro_mask].copy()
+            pro_models['rpm_int'] = pro_models['rpm_free_tier'].apply(safe_int)
+            reasoning_row = pro_models.sort_values('rpm_int', ascending=False).head(1)
+            reasoning_model = reasoning_row['pythonic_name'].values[0] if not reasoning_row.empty else ''
+
+            # Flash: model with highest rpm * rpd (pythonic name)
+            df_to_save['rpm_int'] = df_to_save['rpm_free_tier'].apply(safe_int)
+            df_to_save['rpd_int'] = df_to_save['rpd_free_tier'].apply(safe_int)
+            df_to_save['rpm_rpd'] = df_to_save['rpm_int'] * df_to_save['rpd_int']
+            flash_row = df_to_save.sort_values('rpm_rpd', ascending=False).head(1)
+            flash_model = flash_row['pythonic_name'].values[0] if not flash_row.empty else ''
+
+            # Text-to-speech: model with highest rpm/rpd and tts capability (pythonic name)
+            tts_mask = df_to_save['model_name'].str.lower().str.contains('tts')
+            tts_models = df_to_save[tts_mask].copy()
+            tts_models['rpm_rpd'] = tts_models['rpm_int'] * tts_models['rpd_int']
+            tts_row = tts_models.sort_values('rpm_rpd', ascending=False).head(1)
+            tts_model = tts_row['pythonic_name'].values[0] if not tts_row.empty else ''
+
+            # Audio dialog: model with 'audio dialog' in name, highest rpm/rpd (pythonic name)
+            audio_mask = df_to_save['model_name'].str.lower().str.contains('audio dialog')
+            audio_models = df_to_save[audio_mask].copy()
+            audio_models['rpm_rpd'] = audio_models['rpm_int'] * audio_models['rpd_int']
+            audio_row = audio_models.sort_values('rpm_rpd', ascending=False).head(1)
+            audio_model = audio_row['pythonic_name'].values[0] if not audio_row.empty else ''
+
+            # Write to __init__.py
+            with open(init_path, 'w', encoding='utf-8') as f:
+                f.write("# MODELS/__init__.py\n")
+                f.write(f'REASONING_MODEL = "{reasoning_model}"\n')
+                f.write(f'FLASH_MODEL = "{flash_model}"\n')
+                f.write(f'TEXT_TO_SPEECH_MODEL = "{tts_model}"\n')
+                f.write(f'AUDIO_DIALOG_MODEL = "{audio_model}"\n')
+                f.write("# ...add any other model constants here...\n")
         else:
             print("No final data to display or save.")
 
